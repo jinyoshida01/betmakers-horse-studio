@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { useStudioTools } from './studio-tools';
-import { ArrowDownToLine, ArrowUpRight, Box, Check, ChevronDown, CircleHelp, Grid2X2, Layers2, Maximize2, Minus, MousePointer2, Pause, Play, Plus, Rotate3D, RotateCcw, SlidersHorizontal, Sparkles, StepForward, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpRight, Box, Check, ChevronDown, CircleHelp, Grid2X2, Layers2, Maximize2, Minus, Moon, Sun, MousePointer2, Pause, Play, Plus, Rotate3D, RotateCcw, SlidersHorizontal, Sparkles, StepForward, X } from 'lucide-react';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
@@ -16,11 +16,14 @@ export default function Home(){
  const set=<K extends keyof Settings>(key:K,value:Settings[K])=>setSettings(s=>({...s,[key]:value}));
  useEffect(()=>{if(window.matchMedia('(prefers-reduced-motion: reduce)').matches)setSettings(s=>({...s,playing:false}));let active=true;import('./horse').then(({mountHorse})=>{if(active&&host.current){try{engine.current=mountHorse(host.current,()=>current.current,setPhase);setReady(true);}catch{setError('The 3D viewer needs WebGL. Please enable hardware acceleration or try another browser.');}}}).catch(()=>setError('The 3D viewer could not load. Please refresh to try again.'));return()=>{active=false;engine.current?.destroy();engine.current=null;};},[]);
  useEffect(()=>{if(!notice)return;const id=setTimeout(()=>setNotice(''),3500);return()=>clearTimeout(id);},[notice]);
+ useEffect(()=>{try{if(localStorage.getItem('betmakers-theme')==='light')setSettings(s=>({...s,darkMode:false}));}catch{}},[]);
+ useEffect(()=>{document.documentElement.classList.toggle('dark',settings.darkMode);document.documentElement.style.colorScheme=settings.darkMode?'dark':'light';},[settings.darkMode]);
+ function toggleTheme(){const darkMode=!settings.darkMode;set('darkMode',darkMode);try{localStorage.setItem('betmakers-theme',darkMode?'dark':'light');}catch{}}
  function cameraView(name:string){setViewName(name);engine.current?.view(name);}
- function reset(){setSettings({...defaults});cameraView('Perspective');setNotice('Studio reset');}
+ function reset(){setSettings(s=>({...defaults,darkMode:s.darkMode}));cameraView('Perspective');setNotice('Studio reset');}
  async function download(){if(!engine.current)return;setExporting(true);try{const blob=await engine.current.export();const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`betmakers-horse-${settings.gait}-${String(Math.round(phase*100)).padStart(2,'0')}.png`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setNotice('Image downloaded');}catch{setNotice('Could not download the image. Please try again.');}finally{setExporting(false);}}
  return <main className="studio">
- <header className="topbar"><a className="brand" href="/" aria-label="Betmakers Horse Studio home"><img src="/betmakers-logo.svg" width="180" height="72" alt="BetMakers"/></a><div className="breadcrumb"><span className="bread-line"/> HORSE STUDIO <span className="version">01</span></div><div className="top-actions"><span className="private-note"><span/> Your creative paddock</span><button className="help-button" aria-label="Show viewer help" onClick={()=>setHelp(!help)}><CircleHelp size={19}/></button><button className="download" disabled={!ready||exporting} onClick={download}><ArrowDownToLine size={17}/><span>{exporting?'Exporting…':'Download image'}</span></button></div></header>
+ <header className="topbar"><a className="brand" href="/" aria-label="Betmakers Horse Studio home"><img src={settings.darkMode?"/betmakers-logo-dark.svg":"/betmakers-logo.svg"} width="180" height="72" alt="BetMakers"/></a><div className="breadcrumb"><span className="bread-line"/> HORSE STUDIO <span className="version">01</span></div><div className="top-actions"><span className="private-note"><span/> Your creative paddock</span><label className="theme-toggle"><span>{settings.darkMode?<Moon size={16}/>:<Sun size={16}/>}<span>Dark mode</span></span><Switch aria-label="Dark mode" checked={settings.darkMode} onCheckedChange={toggleTheme}/></label><button className="help-button" aria-label="Show viewer help" onClick={()=>setHelp(!help)}><CircleHelp size={19}/></button><button className="download" disabled={!ready||exporting} onClick={download}><ArrowDownToLine size={17}/><span>{exporting?'Exporting…':'Download image'}</span></button></div></header>
  <div className="workspace"><section className="viewer" ref={stage} aria-label="Horse model viewer"><div className="viewport" ref={host}/>
  <div className="scene-heading"><div className="eyebrow"><span/> LIVE 3D STUDIO</div><h1>Betmakers Horse Studio</h1><p>The thoroughbred, from every angle.</p></div>
  <div className="view-chip"><span className={ready?'status-dot':'status-dot loading'}/>{ready?'Live view':'Preparing model'}</div>

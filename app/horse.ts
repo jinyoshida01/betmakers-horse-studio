@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-export type Settings = { gait: 'idle' | 'walk' | 'run'; playing: boolean; speed: number; phase: number; pose: string; head: number; saddle: boolean; headgear: boolean; harness: boolean; jockey: boolean; rotate: boolean; grid: boolean };
-export const defaults: Settings = { gait: 'idle', playing: true, speed: 1, phase: 0, pose: 'Natural', head: 0, saddle: true, headgear: true, harness: false, jockey: false, rotate: false, grid: true };
+export type Settings = { gait: 'idle' | 'walk' | 'run'; playing: boolean; speed: number; phase: number; pose: string; head: number; saddle: boolean; headgear: boolean; harness: boolean; jockey: boolean; rotate: boolean; grid: boolean; darkMode: boolean };
+export const defaults: Settings = { gait: 'idle', playing: true, speed: 1, phase: 0, pose: 'Natural', head: 0, saddle: true, headgear: true, harness: false, jockey: false, rotate: false, grid: true, darkMode: true };
 type Ring = [number,number,number,number];
 export function mountHorse(host: HTMLElement, getSettings: () => Settings, onPhase: (phase:number)=>void) {
   const scene = new THREE.Scene();
@@ -143,8 +143,9 @@ export function mountHorse(host: HTMLElement, getSettings: () => Settings, onPha
   }
   const reins=new THREE.Group();horse.add(reins);
   const reinGeo=[-1,1].map(side=>{const mesh=line(reins,[[-2,2.7,side*.15],[-1.4,2.45,side*.27],[-.8,2.67,side*.15]],.012,leather);return {mesh,side};});
-  const clock=new THREE.Clock();let phase=0,lastPhase=-1,raf=0,notify=0;
+  const clock=new THREE.Clock();let phase=0,lastPhase=-1,raf=0,notify=0,lastDark:boolean|undefined;
   function frame(){raf=requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05),s=getSettings();
+    if(s.darkMode!==lastDark){lastDark=s.darkMode;const stageColor=s.darkMode?0x171e25:0xedf0f3;(scene.background as THREE.Color).setHex(stageColor);(scene.fog as THREE.Fog).color.setHex(stageColor);ground.material.color.setHex(s.darkMode?0x10161c:0xedf0f3);(grid.material as THREE.Material).opacity=s.darkMode?.13:.45;ring.material.color.setHex(s.darkMode?0x586775:0xb9c4ce);}
     if(s.phase!==lastPhase){phase=s.phase;lastPhase=s.phase;}
     if(s.playing)phase=(phase+dt*s.speed*(s.gait==='run'?.8:s.gait==='walk'?.42:.16))%1;
     const t=phase*Math.PI*2,moving=s.gait!=='idle',run=s.gait==='run';
