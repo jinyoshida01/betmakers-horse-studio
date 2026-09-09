@@ -6,8 +6,8 @@ export const defaults: Settings = { gait: 'idle', playing: true, speed: 1, phase
 type Ring = [number,number,number,number];
 export function mountHorse(host: HTMLElement, getSettings: () => Settings, onPhase: (phase:number)=>void) {
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#e8ebe9');
-  scene.fog = new THREE.Fog('#e8ebe9', 15, 35);
+  scene.background = new THREE.Color('#edf0f3');
+  scene.fog = new THREE.Fog('#edf0f3', 15, 35);
   const camera = new THREE.PerspectiveCamera(36, 1, .1, 60);
   const renderer = new THREE.WebGLRenderer({antialias:true, preserveDrawingBuffer:true});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
@@ -17,18 +17,18 @@ export function mountHorse(host: HTMLElement, getSettings: () => Settings, onPha
   renderer.domElement.setAttribute('aria-label','Interactive 3D racehorse. Drag to orbit, scroll or pinch to zoom.');
   const controls = new OrbitControls(camera,renderer.domElement);
   controls.target.set(0,1.65,0); controls.enableDamping=true; controls.enablePan=false;
-  controls.minDistance=4.8;controls.maxDistance=13;controls.maxPolarAngle=Math.PI*.49;controls.autoRotateSpeed=.65;
+  controls.minDistance=4.8;controls.maxDistance=13;controls.minPolarAngle=0;controls.maxPolarAngle=Math.PI;controls.autoRotateSpeed=.65;
   function view(name:string) {
-    const p: Record<string,number[]> = { Perspective:[-4.7,3.1,7.0], Side:[0,2.6,8.4], Front:[-8.4,2.7,0], Rear:[8.4,2.7,0] };
+    const p: Record<string,number[]> = { Perspective:[-4.7,3.1,7.0], Side:[0,2.6,8.4], Front:[-8.4,2.7,0], Rear:[8.4,2.7,0], Underneath:[-2.5,-4.5,5.5] };
     camera.position.fromArray(p[name]||p.Perspective); controls.target.set(0,1.65,0);controls.update();
   }
   view('Perspective');
   scene.add(new THREE.HemisphereLight(0xffffff,0x73756c,2.6));
   const key=new THREE.DirectionalLight(0xfff7e8,4.8);key.position.set(-3,7,5);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.camera.left=-5;key.shadow.camera.right=5;key.shadow.camera.top=5;key.shadow.camera.bottom=-5;key.shadow.normalBias=.025;key.shadow.bias=-.0002;scene.add(key);
   const rim=new THREE.DirectionalLight(0xd6e5f4,2.3);rim.position.set(3,5,-4);scene.add(rim);
-  const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0xe8ebe9,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
-  const grid=new THREE.GridHelper(18,36,0xc9ceca,0xd8ddd9);grid.position.y=.004;(grid.material as THREE.Material).transparent=true;(grid.material as THREE.Material).opacity=.45;scene.add(grid);
-  const ring=new THREE.Mesh(new THREE.RingGeometry(2.45,2.455,128),new THREE.MeshBasicMaterial({color:0xb2beb6,side:THREE.DoubleSide,transparent:true,opacity:.55}));ring.rotation.x=-Math.PI/2;ring.position.y=.008;scene.add(ring);
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0xedf0f3,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+  const grid=new THREE.GridHelper(18,36,0xc8d0d7,0xdce1e6);grid.position.y=.004;(grid.material as THREE.Material).transparent=true;(grid.material as THREE.Material).opacity=.45;scene.add(grid);
+  const ring=new THREE.Mesh(new THREE.RingGeometry(2.45,2.455,128),new THREE.MeshBasicMaterial({color:0xb9c4ce,side:THREE.DoubleSide,transparent:true,opacity:.55}));ring.rotation.x=-Math.PI/2;ring.position.y=.008;scene.add(ring);
   const horse=new THREE.Group();scene.add(horse);
   const coat=new THREE.MeshStandardMaterial({color:0x784025,roughness:.43,metalness:.04});
   const darkCoat=new THREE.MeshStandardMaterial({color:0x4c281b,roughness:.5});
@@ -165,7 +165,7 @@ export function mountHorse(host: HTMLElement, getSettings: () => Settings, onPha
     jockey.rotation.z=run?-.08+.045*Math.sin(t):.018*Math.sin(t);
     horse.updateMatrixWorld(true);
     for(const {mesh,side} of reinGeo){const bit=head.localToWorld(new THREE.Vector3(-.62,-.31,side*.15));horse.worldToLocal(bit);const end=new THREE.Vector3(s.jockey?-.8:-.23,s.jockey?2.68:2.45,side*.19);const middle=bit.clone().lerp(end,.5);middle.y-=.17;middle.z+=side*.06;const path=new THREE.CatmullRomCurve3([bit,middle,end]);mesh.geometry.dispose();mesh.geometry=new THREE.TubeGeometry(path,20,.01,5,false);}
-    controls.autoRotate=s.rotate;grid.visible=s.grid;ring.visible=s.grid;controls.update();renderer.render(scene,camera);
+    controls.autoRotate=s.rotate;controls.update();const aboveFloor=camera.position.y>.06;ground.visible=aboveFloor;grid.visible=s.grid&&aboveFloor;ring.visible=s.grid&&aboveFloor;renderer.render(scene,camera);
     notify+=dt;if(notify>.08){onPhase(phase);notify=0;}
   }
   function resize(){const w=host.clientWidth,h=host.clientHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);}

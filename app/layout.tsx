@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Stride — Horse Studio',
+  title: 'Betmakers Horse Studio',
   icons: { icon: '/favicon.svg' },
   description: 'Explore a sculpted 3D thoroughbred. Change its motion, pose and racing accessories, then capture your perfect frame.',
 };
