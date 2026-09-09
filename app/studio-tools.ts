@@ -9,7 +9,7 @@ export function useStudioTools(setSettings:Dispatch<SetStateAction<Settings>>){
   const life=new AbortController();
   const enums:Record<string,string[]>={gait:['idle','walk','run'],pose:['Natural','Alert','Grazing','Rearing']};
   const booleans=['playing','saddle','headgear','harness','jockey','rotate','grid','darkMode'];
-  const ranges:Record<string,number[]>={speed:[.25,2],phase:[0,1],head:[-20,30]};
+  const ranges:Record<string,number[]>={speed:[.25,2],phase:[0,1],head:[-20,30],lightX:[-10,10],lightY:[1,12],lightZ:[-10,10]};
   const properties:Record<string,object>={};
   Object.entries(enums).forEach(([key,values])=>properties[key]={type:'string',enum:values});
   booleans.forEach(key=>properties[key]={type:'boolean'});

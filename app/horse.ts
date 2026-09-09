@@ -1,11 +1,13 @@
 import * as THREE from 'three';
+import { isRiderJoint, type JointAngles } from './rig-config';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-export type Settings = { gait: 'idle' | 'walk' | 'run'; playing: boolean; speed: number; phase: number; pose: string; head: number; saddle: boolean; headgear: boolean; harness: boolean; jockey: boolean; rotate: boolean; grid: boolean; darkMode: boolean };
-export const defaults: Settings = { gait: 'idle', playing: true, speed: 1, phase: 0, pose: 'Natural', head: 0, saddle: true, headgear: true, harness: false, jockey: false, rotate: false, grid: true, darkMode: true };
+export type Settings = { gait: 'idle' | 'walk' | 'run'; playing: boolean; speed: number; phase: number; pose: string; head: number; saddle: boolean; headgear: boolean; harness: boolean; jockey: boolean; rotate: boolean; grid: boolean; darkMode: boolean; rigEnabled: boolean; selectedJoint: string; rigPose: Record<string,JointAngles>; lightX: number; lightY: number; lightZ: number };
+export const defaults: Settings = { gait: 'idle', playing: true, speed: 1, phase: 0, pose: 'Natural', head: 0, saddle: true, headgear: true, harness: false, jockey: false, rotate: false, grid: true, darkMode: true, rigEnabled: false, selectedJoint: 'neck', rigPose: {}, lightX: -3, lightY: 7, lightZ: 5 };
 type Ring = [number,number,number,number];
-export function mountHorse(host: HTMLElement, getSettings: () => Settings, onPhase: (phase:number)=>void) {
+export function mountHorse(host: HTMLElement, getSettings: () => Settings, onPhase: (phase:number)=>void, onSelectJoint?: (id:string)=>void) {
   const scene = new THREE.Scene();
+  const joints = new Map<string, THREE.Object3D>();
   scene.background = new THREE.Color('#edf0f3');
   scene.fog = new THREE.Fog('#edf0f3', 15, 35);
   const camera = new THREE.PerspectiveCamera(36, 1, .1, 60);
@@ -24,9 +26,12 @@ export function mountHorse(host: HTMLElement, getSettings: () => Settings, onPha
   }
   view('Perspective');
   scene.add(new THREE.HemisphereLight(0xffffff,0x73756c,2.6));
-  const key=new THREE.DirectionalLight(0xfff7e8,4.8);key.position.set(-3,7,5);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.camera.left=-5;key.shadow.camera.right=5;key.shadow.camera.top=5;key.shadow.camera.bottom=-5;key.shadow.normalBias=.025;key.shadow.bias=-.0002;scene.add(key);
+  const key=new THREE.DirectionalLight(0xfff7e8,4.8);key.position.set(-3,7,5);key.target.position.set(0,1.7,0);scene.add(key.target);key.castShadow=true;key.shadow.mapSize.set(2048,2048);key.shadow.camera.left=-5;key.shadow.camera.right=5;key.shadow.camera.top=5;key.shadow.camera.bottom=-5;key.shadow.normalBias=.025;key.shadow.bias=-.0002;scene.add(key);
   const rim=new THREE.DirectionalLight(0xd6e5f4,2.3);rim.position.set(3,5,-4);scene.add(rim);
-  const ground=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0xedf0f3,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+  const ground=new THREE.Mesh<THREE.PlaneGeometry,THREE.MeshStandardMaterial|THREE.MeshBasicMaterial>(new THREE.PlaneGeometry(200,200),new THREE.MeshStandardMaterial({color:0xedf0f3,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;scene.add(ground);
+  const lightGroundMaterial=ground.material;
+  const darkGroundMaterial=new THREE.MeshBasicMaterial({color:0x090d12});
+  const darkShadow=new THREE.Mesh(new THREE.PlaneGeometry(200,200),new THREE.ShadowMaterial({opacity:.35}));darkShadow.rotation.x=-Math.PI/2;darkShadow.position.y=.002;darkShadow.receiveShadow=true;scene.add(darkShadow);
   const grid=new THREE.GridHelper(18,36,0xc8d0d7,0xdce1e6);grid.position.y=.004;(grid.material as THREE.Material).transparent=true;(grid.material as THREE.Material).opacity=.45;scene.add(grid);
   const ring=new THREE.Mesh(new THREE.RingGeometry(2.45,2.455,128),new THREE.MeshBasicMaterial({color:0xb9c4ce,side:THREE.DoubleSide,transparent:true,opacity:.55}));ring.rotation.x=-Math.PI/2;ring.position.y=.008;scene.add(ring);
   const horse=new THREE.Group();scene.add(horse);
@@ -58,9 +63,9 @@ export function mountHorse(host: HTMLElement, getSettings: () => Settings, onPha
   loft(horse,[[-1.13,1.96,.02,.02],[-.89,1.96,.43,.35],[-.52,1.96,.5,.4],[.1,1.92,.5,.43],[.64,1.96,.47,.39],[1.05,1.99,.36,.33],[1.27,1.99,.02,.02]],coat);
   ell(horse,coat,[-.78,1.95,0],[.38,.52,.37],-.1);
   ell(horse,coat,[.86,1.97,0],[.4,.47,.38],.12);
-  const neck=new THREE.Group();neck.position.set(-.79,2.06,0);horse.add(neck);
+  const neck=new THREE.Group();neck.position.set(-.79,2.06,0);horse.add(neck);joints.set('neck',neck);
   loft(neck,[[.16,-.18,.22,.24],[-.04,.05,.39,.29],[-.24,.43,.3,.23],[-.4,.75,.21,.17],[-.49,.94,.17,.15],[-.56,1.02,.08,.1]],coat);
-  const head=new THREE.Group();head.position.set(-.5,.93,0);neck.add(head);
+  const head=new THREE.Group();head.position.set(-.5,.93,0);neck.add(head);joints.set('head',head);
   loft(head,[[.09,.06,.04,.06],[-.05,.07,.24,.18],[-.3,-.03,.19,.145],[-.56,-.21,.12,.125],[-.75,-.28,.13,.14],[-.83,-.28,.02,.06]],coat);
   ell(head,coat,[-.1,-.05,0],[.2,.22,.2]);
   ell(head,darkCoat,[-.73,-.28,0],[.145,.12,.143],-.15);
@@ -80,7 +85,7 @@ export function mountHorse(host: HTMLElement, getSettings: () => Settings, onPha
     line(neck,[[x+.16,y,0],[x+.13,y+.035,-.045],[x+.23,y-.13,-.08],[x+.27,y-.25,-.06]],.025,hair);
   }
   for(let i=0;i<7;i++)line(head,[[.04,.19,(i-3)*.016],[-.1,.26,(i-3)*.02],[-.26,.16,(i-3)*.025]],.015,hair);
-  const tail=new THREE.Group();tail.position.set(1.13,2.17,0);horse.add(tail);
+  const tail=new THREE.Group();tail.position.set(1.13,2.17,0);horse.add(tail);joints.set('tail',tail);
   for(let i=0;i<18;i++){const angle=i/18*Math.PI*2;line(tail,[[0,0,0],[.24,-.17,Math.sin(angle)*.045],[.39,-.53,Math.sin(angle)*.08],[.48+Math.cos(angle)*.065,-1.08,Math.sin(angle)*.105],[.35+Math.cos(angle)*.05,-1.4,Math.sin(angle)*.06]],.022,hair);}
   const legs:{upper:THREE.Group,lower:THREE.Group,foot:THREE.Group,back:boolean,side:number}[]=[];
   for(const back of [false,true])for(const side of [-1,1]){
@@ -96,6 +101,7 @@ export function mountHorse(host: HTMLElement, getSettings: () => Settings, onPha
     const foot=new THREE.Group();foot.position.set(ankleX,-.66,0);lower.add(foot);
     bone(foot,[0,0,0],[-.04,-.17,0],.055,.069,back&&side===1?white:darkCoat);
     ell(foot,hoof,[-.061,-.226,.005],[.112,.092,.089]);
+    const index=legs.length;joints.set(`leg${index}_0`,upper);joints.set(`leg${index}_1`,lower);joints.set(`leg${index}_2`,foot);
     legs.push({upper,lower,foot,back,side});
   }
   const saddle=new THREE.Group();horse.add(saddle);
@@ -130,22 +136,52 @@ export function mountHorse(host: HTMLElement, getSettings: () => Settings, onPha
   line(harness,[[-.27,2.46,0],[-.28,2.1,.44],[-.28,1.61,.32],[-.28,1.47,0],[-.28,1.61,-.32],[-.28,2.1,-.44],[-.27,2.46,0]],.039,leather);
   const jockey=new THREE.Group();jockey.position.set(0,2.47,0);horse.add(jockey);
   const silk=new THREE.MeshStandardMaterial({color:0x314d40,roughness:.72});const skin=new THREE.MeshStandardMaterial({color:0xcf9975,roughness:.75});
-  ell(jockey,white,[.09,.17,0],[.2,.17,.18]);
-  ell(jockey,silk,[-.15,.42,0],[.19,.37,.2],-.9);
-  ell(jockey,skin,[-.48,.72,0],[.105,.14,.105],-.3);
-  ell(jockey,silk,[-.47,.8,0],[.132,.105,.127]);
-  ell(jockey,leather,[-.57,.77,0],[.12,.015,.12]);
-  for(const side of [-1,1]){
-    bone(jockey,[.11,.2,side*.12],[-.32,-.02,side*.36],.12,.075,white);ell(jockey,white,[-.32,-.02,side*.36],[.09,.095,.075]);
-    bone(jockey,[-.32,-.02,side*.36],[-.12,-.46,side*.49],.074,.052,leather);ell(jockey,leather,[-.2,-.46,side*.49],[.13,.054,.065]);
-    bone(jockey,[-.32,.57,side*.17],[-.43,.24,side*.23],.074,.05,silk);
-    bone(jockey,[-.43,.24,side*.23],[-.78,.2,side*.15],.05,.039,silk);ell(jockey,skin,[-.8,.2,side*.15],[.063,.047,.043]);
+  // Place meshes in their original rest pose, then attach them to anatomical pivots.
+  function joint(id:string,parent:THREE.Object3D,position:number[],parts:THREE.Object3D[]){
+    const group=new THREE.Group();group.position.fromArray(position);parent.add(group);scene.updateMatrixWorld(true);for(const part of parts)group.attach(part);joints.set(id,group);return group;
   }
+  joints.set('rider',jockey);
+  ell(jockey,white,[.09,.17,0],[.2,.17,.18]);
+  const torsoMesh=ell(jockey,silk,[-.15,.42,0],[.19,.37,.2],-.9);
+  const headParts=[ell(jockey,skin,[-.48,.72,0],[.105,.14,.105],-.3),ell(jockey,silk,[-.47,.8,0],[.132,.105,.127]),ell(jockey,leather,[-.57,.77,0],[.12,.015,.12])];
+  const riderHead=joint('riderHead',jockey,[-.4,.65,0],headParts);
+  const upperParts:THREE.Object3D[]=[torsoMesh,riderHead];
+  const hands=new Map<number,THREE.Object3D>();
+  for(const [i,side] of [-1,1].entries()){
+    const thigh=bone(jockey,[.11,.2,side*.12],[-.32,-.02,side*.36],.12,.075,white);
+    const kneeMesh=ell(jockey,white,[-.32,-.02,side*.36],[.09,.095,.075]);
+    const calf=bone(jockey,[-.32,-.02,side*.36],[-.12,-.46,side*.49],.074,.052,leather);
+    const boot=ell(jockey,leather,[-.2,-.46,side*.49],[.13,.054,.065]);
+    const knee=joint(`rider${i}_Knee`,jockey,[-.32,-.02,side*.36],[kneeMesh,calf,boot]);
+    joint(`rider${i}_Hip`,jockey,[.11,.2,side*.12],[thigh,knee]);
+    const arm=bone(jockey,[-.32,.57,side*.17],[-.43,.24,side*.23],.074,.05,silk);
+    const forearm=bone(jockey,[-.43,.24,side*.23],[-.78,.2,side*.15],.05,.039,silk);
+    const hand=ell(jockey,skin,[-.8,.2,side*.15],[.063,.047,.043]);hands.set(side,hand);
+    const elbow=joint(`rider${i}_Elbow`,jockey,[-.43,.24,side*.23],[forearm,hand]);
+    const shoulder=joint(`rider${i}_Shoulder`,jockey,[-.32,.57,side*.17],[arm,elbow]);upperParts.push(shoulder);
+  }
+  joint('spine',jockey,[.05,.22,0],upperParts);
+  const rigOverlay=new THREE.Group();scene.add(rigOverlay);
+  const markerGeometry=new THREE.SphereGeometry(.046,12,8);
+  const markerMaterial=new THREE.MeshBasicMaterial({color:0xff55ac,depthTest:false,transparent:true,opacity:.88});
+  const selectedMaterial=new THREE.MeshBasicMaterial({color:0xffffff,depthTest:false});
+  const markers=new Map<string,THREE.Mesh>();
+  const edges:{id:string,parentId:string,line:THREE.Line}[]=[];
+  for(const [id,node] of joints){node.name=id;const marker=new THREE.Mesh(markerGeometry,markerMaterial);marker.userData.joint=id;marker.renderOrder=20;rigOverlay.add(marker);markers.set(id,marker);
+    let parent=node.parent;while(parent){const entry=[...joints].find(([,v])=>v===parent);if(entry){const geo=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]);const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:0xff55ac,depthTest:false,transparent:true,opacity:.65}));line.renderOrder=19;rigOverlay.add(line);edges.push({id,parentId:entry[0],line});break;}parent=parent.parent;}
+  }
+  const axes=new THREE.AxesHelper(.24);axes.renderOrder=21;const axisMaterials=Array.isArray(axes.material)?axes.material:[axes.material];axisMaterials.forEach(m=>m.depthTest=false);rigOverlay.add(axes);
+  const raycaster=new THREE.Raycaster();let pointerStart={x:0,y:0};
+  function pointerDown(e:PointerEvent){pointerStart={x:e.clientX,y:e.clientY};}
+  function pointerUp(e:PointerEvent){const state=getSettings();if(!state.rigEnabled||Math.hypot(e.clientX-pointerStart.x,e.clientY-pointerStart.y)>5)return;const rect=renderer.domElement.getBoundingClientRect();raycaster.setFromCamera(new THREE.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1),camera);const hit=raycaster.intersectObjects([...markers.values()].filter(m=>m.visible))[0];if(hit)onSelectJoint?.(hit.object.userData.joint);}
+  renderer.domElement.addEventListener('pointerdown',pointerDown);renderer.domElement.addEventListener('pointerup',pointerUp);
   const reins=new THREE.Group();horse.add(reins);
   const reinGeo=[-1,1].map(side=>{const mesh=line(reins,[[-2,2.7,side*.15],[-1.4,2.45,side*.27],[-.8,2.67,side*.15]],.012,leather);return {mesh,side};});
   const clock=new THREE.Clock();let phase=0,lastPhase=-1,raf=0,notify=0,lastDark:boolean|undefined;
   function frame(){raf=requestAnimationFrame(frame);const dt=Math.min(clock.getDelta(),.05),s=getSettings();
-    if(s.darkMode!==lastDark){lastDark=s.darkMode;const stageColor=s.darkMode?0x171e25:0xedf0f3;(scene.background as THREE.Color).setHex(stageColor);(scene.fog as THREE.Fog).color.setHex(stageColor);ground.material.color.setHex(s.darkMode?0x10161c:0xedf0f3);(grid.material as THREE.Material).opacity=s.darkMode?.13:.45;ring.material.color.setHex(s.darkMode?0x586775:0xb9c4ce);}
+    if(s.darkMode!==lastDark){lastDark=s.darkMode;const stageColor=s.darkMode?0x0b1016:0xedf0f3;(scene.background as THREE.Color).setHex(stageColor);(scene.fog as THREE.Fog).color.setHex(stageColor);ground.material=s.darkMode?darkGroundMaterial:lightGroundMaterial;(grid.material as THREE.Material).opacity=s.darkMode?.06:.45;ring.material.color.setHex(s.darkMode?0x586775:0xb9c4ce);}
+    key.position.set(s.lightX,s.lightY,s.lightZ);
+    for(const node of joints.values())node.rotation.set(0,0,0);
     if(s.phase!==lastPhase){phase=s.phase;lastPhase=s.phase;}
     if(s.playing)phase=(phase+dt*s.speed*(s.gait==='run'?.8:s.gait==='walk'?.42:.16))%1;
     const t=phase*Math.PI*2,moving=s.gait!=='idle',run=s.gait==='run';
@@ -164,12 +200,17 @@ export function mountHorse(host: HTMLElement, getSettings: () => Settings, onPha
     }
     saddle.visible=s.saddle;headgear.visible=s.headgear;harness.visible=s.harness;jockey.visible=s.jockey;reins.visible=s.headgear;
     jockey.rotation.z=run?-.08+.045*Math.sin(t):.018*Math.sin(t);
+    for(const [id,angles] of Object.entries(s.rigPose)){const node=joints.get(id);if(node){node.rotateX(THREE.MathUtils.degToRad(angles[0]));node.rotateY(THREE.MathUtils.degToRad(angles[1]));node.rotateZ(THREE.MathUtils.degToRad(angles[2]));}}
     horse.updateMatrixWorld(true);
-    for(const {mesh,side} of reinGeo){const bit=head.localToWorld(new THREE.Vector3(-.62,-.31,side*.15));horse.worldToLocal(bit);const end=new THREE.Vector3(s.jockey?-.8:-.23,s.jockey?2.68:2.45,side*.19);const middle=bit.clone().lerp(end,.5);middle.y-=.17;middle.z+=side*.06;const path=new THREE.CatmullRomCurve3([bit,middle,end]);mesh.geometry.dispose();mesh.geometry=new THREE.TubeGeometry(path,20,.01,5,false);}
-    controls.autoRotate=s.rotate;controls.update();const aboveFloor=camera.position.y>.06;ground.visible=aboveFloor;grid.visible=s.grid&&aboveFloor;ring.visible=s.grid&&aboveFloor;renderer.render(scene,camera);
+    rigOverlay.visible=s.rigEnabled;
+    for(const [id,marker] of markers){joints.get(id)!.getWorldPosition(marker.position);marker.visible=!isRiderJoint(id)||s.jockey;marker.material=id===s.selectedJoint?selectedMaterial:markerMaterial;marker.scale.setScalar(id===s.selectedJoint?1.6:1);}
+    for(const edge of edges){const a=markers.get(edge.id)!,b=markers.get(edge.parentId)!;edge.line.visible=a.visible&&b.visible;const positions=edge.line.geometry.attributes.position;positions.setXYZ(0,a.position.x,a.position.y,a.position.z);positions.setXYZ(1,b.position.x,b.position.y,b.position.z);positions.needsUpdate=true;edge.line.geometry.computeBoundingSphere();}
+    const selected=joints.get(s.selectedJoint);if(selected){selected.getWorldPosition(axes.position);selected.getWorldQuaternion(axes.quaternion);}axes.visible=!!selected&&(!isRiderJoint(s.selectedJoint)||s.jockey);
+    for(const {mesh,side} of reinGeo){const bit=head.localToWorld(new THREE.Vector3(-.62,-.31,side*.15));horse.worldToLocal(bit);const end=s.jockey?horse.worldToLocal(hands.get(side)!.getWorldPosition(new THREE.Vector3())):new THREE.Vector3(-.23,2.45,side*.19);const middle=bit.clone().lerp(end,.5);middle.y-=.17;middle.z+=side*.06;const path=new THREE.CatmullRomCurve3([bit,middle,end]);mesh.geometry.dispose();mesh.geometry=new THREE.TubeGeometry(path,20,.01,5,false);}
+    controls.autoRotate=s.rotate;controls.update();const aboveFloor=camera.position.y>.06;ground.visible=aboveFloor;darkShadow.visible=s.darkMode&&aboveFloor;grid.visible=s.grid&&aboveFloor;ring.visible=s.grid&&aboveFloor;renderer.render(scene,camera);
     notify+=dt;if(notify>.08){onPhase(phase);notify=0;}
   }
   function resize(){const w=host.clientWidth,h=host.clientHeight;camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);}
   const observer=new ResizeObserver(resize);observer.observe(host);resize();frame();
-  return {view,zoom:(direction:number)=>{camera.position.sub(controls.target).multiplyScalar(direction>0?.86:1.16).clampLength(4.8,13).add(controls.target);controls.update();},export:()=>new Promise<Blob>((resolve,reject)=>{renderer.render(scene,camera);renderer.domElement.toBlob(b=>b?resolve(b):reject(new Error('Image could not be created.')),'image/png');}),destroy:()=>{cancelAnimationFrame(raf);observer.disconnect();controls.dispose();scene.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();const mats=Array.isArray(o.material)?o.material:[o.material];mats.forEach(m=>{Object.values(m).forEach(v=>{if(v instanceof THREE.Texture)v.dispose();});m.dispose();});}});renderer.dispose();renderer.domElement.remove();}};
+  return {view,zoom:(direction:number)=>{camera.position.sub(controls.target).multiplyScalar(direction>0?.86:1.16).clampLength(4.8,13).add(controls.target);controls.update();},export:()=>new Promise<Blob>((resolve,reject)=>{const visible=rigOverlay.visible;rigOverlay.visible=false;renderer.render(scene,camera);rigOverlay.visible=visible;renderer.domElement.toBlob(b=>b?resolve(b):reject(new Error('Image could not be created.')),'image/png');}),destroy:()=>{cancelAnimationFrame(raf);observer.disconnect();renderer.domElement.removeEventListener('pointerdown',pointerDown);renderer.domElement.removeEventListener('pointerup',pointerUp);lightGroundMaterial.dispose();darkGroundMaterial.dispose();markerGeometry.dispose();markerMaterial.dispose();selectedMaterial.dispose();for(const edge of edges){edge.line.geometry.dispose();(edge.line.material as THREE.Material).dispose();}axes.geometry.dispose();axisMaterials.forEach(m=>m.dispose());controls.dispose();scene.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();const mats=Array.isArray(o.material)?o.material:[o.material];mats.forEach(m=>{Object.values(m).forEach(v=>{if(v instanceof THREE.Texture)v.dispose();});m.dispose();});}});renderer.dispose();renderer.domElement.remove();}};
 }
