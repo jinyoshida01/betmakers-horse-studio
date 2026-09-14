@@ -7,14 +7,14 @@ export function useStudioTools(setSettings:Dispatch<SetStateAction<Settings>>){
   const context=(document as Document & {modelContext?:{registerTool:(tool:Tool,options:{signal:AbortSignal})=>void|Promise<void>}}).modelContext;
   if(!context?.registerTool)return;
   const life=new AbortController();
-  const enums:Record<string,string[]>={gait:['idle','walk','run'],pose:['Natural','Alert','Grazing','Rearing']};
-  const booleans=['playing','saddle','headgear','harness','jockey','rotate','grid','darkMode'];
-  const ranges:Record<string,number[]>={speed:[.25,2],phase:[0,1],head:[-20,30],lightX:[-10,10],lightY:[1,12],lightZ:[-10,10]};
+  const enums:Record<string,string[]>={gait:['idle','run']};
+  const booleans=['playing','rotate','grid','darkMode'];
+  const ranges:Record<string,number[]>={speed:[.25,2],phase:[0,1]};
   const properties:Record<string,object>={};
   Object.entries(enums).forEach(([key,values])=>properties[key]={type:'string',enum:values});
   booleans.forEach(key=>properties[key]={type:'boolean'});
   Object.entries(ranges).forEach(([key,[min,max]])=>properties[key]={type:'number',minimum:min,maximum:max});
-  const tool:Tool={name:'configure_horse',description:'Change the visible horse animation, pose, accessories, and stage options. Pose-only changes pause the horse in idle. Use phase from 0 to 1 to choose a specific animation frame.',inputSchema:{type:'object',properties,additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:false},execute(input){
+  const tool:Tool={name:'configure_horse',description:'Choose idle or running on the Blender horse, change playback and stage options. Use phase from 0 to 1 to choose a specific animation frame.',inputSchema:{type:'object',properties,additionalProperties:false},annotations:{readOnlyHint:false,untrustedContentHint:false},execute(input){
    if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Expected an options object.');
    const patch=input as Record<string,unknown>;
    for(const [key,value] of Object.entries(patch)){
@@ -23,7 +23,7 @@ export function useStudioTools(setSettings:Dispatch<SetStateAction<Settings>>){
     if(booleans.includes(key)&&typeof value!=='boolean')throw new Error(`Expected boolean for ${key}`);
     if(ranges[key]&&(typeof value!=='number'||!Number.isFinite(value)||value<ranges[key][0]||value>ranges[key][1]))throw new Error(`Invalid range for ${key}`);
    }
-   const prepared={...patch};if('pose' in patch&&!('gait' in patch)){prepared.gait='idle';prepared.playing=false;}if('phase' in patch&&!('playing' in patch))prepared.playing=false;
+   const prepared={...patch};if('phase' in patch&&!('playing' in patch))prepared.playing=false;
    let result:Settings|undefined;flushSync(()=>setSettings(s=>{result={...s,...prepared} as Settings;return result;}));
    return {settings:result};
   }};

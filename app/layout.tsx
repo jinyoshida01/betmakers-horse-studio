@@ -18,7 +18,7 @@ const antonSC = Anton_SC({
 export const metadata: Metadata = {
   title: 'Betmakers Horse Studio',
   icons: { icon: '/favicon.svg' },
-  description: 'Explore a sculpted 3D thoroughbred. Change its motion, pose and racing accessories, then capture your perfect frame.',
+  description: 'Explore the Blender chestnut horse in idle or running animation. Rotate the view and download your perfect frame.',
 };
 
 export default function RootLayout({
