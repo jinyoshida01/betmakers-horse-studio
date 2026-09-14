@@ -12,7 +12,9 @@ export function createPoseModel(model:THREE.Object3D,data:RigData,gait:string,ti
  for(const original of originals){
   const weights=data.meshes[original.name],geometry=original.geometry.clone(),positions=new Float32Array(geometry.attributes.position.count*3);
   for(let i=0;i<geometry.attributes.position.count;i++){original.getVertexPosition(i,v);v.toArray(positions,i*3);}
-  geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));geometry.morphAttributes={};geometry.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(weights.indices,4));geometry.setAttribute('skinWeight',new THREE.Float32BufferAttribute(weights.weights,4));geometry.computeVertexNormals();
+  geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));geometry.morphAttributes={};geometry.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(weights.indices,4));geometry.setAttribute('skinWeight',new THREE.Float32BufferAttribute(weights.weights,4));// Quantized glTF normals use signed bytes. Recomputing into that buffer
+  // truncates face normals to zero, so allocate floating-point normals first.
+  geometry.deleteAttribute('normal');geometry.computeVertexNormals();geometry.deleteAttribute('tangent');
   const mesh=new THREE.SkinnedMesh(geometry,original.material);mesh.name='Pose '+original.name;mesh.position.copy(original.position);mesh.quaternion.copy(original.quaternion);mesh.scale.copy(original.scale);mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false;original.parent!.add(mesh);mesh.updateWorldMatrix(true,false);mesh.bind(skeleton,mesh.matrixWorld);original.visible=false;skins.push(mesh);
  }
  function snapshot(){return bones.map(b=>({p:b.position.clone(),q:b.quaternion.clone(),s:b.scale.clone()}));}

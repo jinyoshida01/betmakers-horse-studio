@@ -58,22 +58,36 @@ export function mountHorse(host:HTMLElement,getSettings:()=>Settings,onPhase:(ph
  for(let y=0;y<64;y++)for(let x=0;x<64;x++){const i=(y*64+x)*4,v=128+Math.round(35*Math.sin(x*Math.PI/2)*Math.cos(y*Math.PI/2));weaveData[i]=weaveData[i+1]=weaveData[i+2]=v;weaveData[i+3]=255;}
  const weave=new THREE.DataTexture(weaveData,64,64);weave.wrapS=weave.wrapT=THREE.RepeatWrapping;weave.repeat.set(28,14);weave.magFilter=THREE.LinearFilter;weave.needsUpdate=true;
  function disposeModel(object:THREE.Object3D){object.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const value of Object.values(m))if(value instanceof THREE.Texture)value.dispose();m.dispose();}}});}
+ const coatFiles:Partial<Record<Coat,string>>={Black:'black',Grey:'grey',Palomino:'cream',Pinto:'pinto','Grey Pinto':'grey-pinto','Rose Grey':'rose-grey',Cremello:'cream',White:'white'};
+ const coatImages=new Map<string,ImageBitmap>();
+ const coatsReady=Promise.all([...new Set(Object.values(coatFiles))].map(async file=>{const img=await new THREE.ImageBitmapLoader().loadAsync(`/models/coats/${file}.webp`);if(disposed)img.close();else coatImages.set(file!,img);}));
  function applyCoat(coat:Coat){
   for(const [material,original] of coatMaterials){
    if(coat==='Chestnut'){material.map=original;material.needsUpdate=true;continue;}
    const key=original.uuid+coat;let texture=coatMaps.get(key);
    if(!texture){
-    const source=original.image as CanvasImageSource & {width:number;height:number};const canvas=document.createElement('canvas');canvas.width=source.width;canvas.height=source.height;
-    const ctx=canvas.getContext('2d')!;ctx.drawImage(source,0,0);const pixels=ctx.getImageData(0,0,canvas.width,canvas.height),data=pixels.data;
-    const fur=material.name.includes('Fur');
-    const tint=coat==='Bay'?(fur?[.15,.13,.12]:[.69,.39,.20]):coat==='Black'?[.17,.18,.20]:coat==='Grey'?[.83,.85,.87]:(fur?[1,.95,.78]:[.98,.77,.44]);
-    for(let i=0;i<data.length;i+=4){const r=data[i]/255,g=data[i+1]/255,b=data[i+2]/255,lum=.2126*r+.7152*g+.0722*b;
-     // Preserve existing pale markings while retaining the baked coat detail.
-     if(lum>.65&&Math.max(r,g,b)-Math.min(r,g,b)<.13)continue;
-     const value=Math.min(1,Math.pow(lum,coat==='Black'?.8:.62)*1.5);
-     data[i]=255*value*tint[0];data[i+1]=255*value*tint[1];data[i+2]=255*value*tint[2];
+    const fur=material.name.includes('Fur'),authored=!fur&&coatFiles[coat]?coatImages.get(coatFiles[coat]!):undefined;
+    if(!fur&&coatFiles[coat]&&!authored)return;
+    const source=(authored||original.image) as CanvasImageSource & {width:number;height:number};
+    const canvas=document.createElement('canvas');canvas.width=source.width;canvas.height=source.height;const ctx=canvas.getContext('2d')!;ctx.drawImage(source,0,0);
+    if(fur||coat==='Palomino'||coat==='Bay'){
+     const pixels=ctx.getImageData(0,0,canvas.width,canvas.height),data=pixels.data;
+     for(let i=0;i<data.length;i+=4){
+      const r=data[i]/255,g=data[i+1]/255,b=data[i+2]/255,lum=.2126*r+.7152*g+.0722*b;
+      if(fur){
+       const pale=['Palomino','Cremello','White'].includes(coat),grey=['Grey','Grey Pinto','Rose Grey'].includes(coat);
+       const value=pale?.70+.27*Math.sqrt(lum):grey?.16+.55*Math.sqrt(lum):.045+.24*Math.sqrt(lum);
+       const tint=pale?[1,.96,.86]:grey?[.91,.94,1]:[.85,.82,.80];data[i]=255*value*tint[0];data[i+1]=255*value*tint[1];data[i+2]=255*value*tint[2];
+      }else if(coat==='Palomino'){
+       // Use the authored cream coat, retaining eye/mouth details and dark muzzle.
+       if(lum>.14&&Math.max(r,g,b)-Math.min(r,g,b)<.25){data[i]=Math.min(255,data[i]*1.04);data[i+1]*=.84;data[i+2]*=.52;}
+      }else if(coat==='Bay'){
+       if(lum>.65&&Math.max(r,g,b)-Math.min(r,g,b)<.13)continue;
+       const value=Math.min(1,Math.pow(lum,.65)*1.4);data[i]=255*value*.69;data[i+1]=255*value*.39;data[i+2]=255*value*.20;
+      }
+     }ctx.putImageData(pixels,0,0);
     }
-    ctx.putImageData(pixels,0,0);texture=original.clone();texture.source=new THREE.Source(canvas);texture.needsUpdate=true;coatMaps.set(key,texture);
+    texture=original.clone();texture.source=new THREE.Source(canvas);texture.needsUpdate=true;coatMaps.set(key,texture);
    }
    material.map=texture;material.needsUpdate=true;
   }
@@ -101,6 +115,7 @@ export function mountHorse(host:HTMLElement,getSettings:()=>Settings,onPhase:(ph
     if(m.name.startsWith('Saddlecloth')){
      m.roughness=1;m.roughnessMap=null;m.metalness=0;m.metalnessMap=null;m.envMapIntensity=.2;m.bumpMap=weave;m.bumpScale=.0015;
      if(m instanceof THREE.MeshPhysicalMaterial){m.clearcoat=0;m.specularIntensity=.15;m.sheen=.1;m.sheenRoughness=1;}
+     if(m.name.includes('Bound Edge'))m.color.set(0x080808);
      if(m.name.includes('Swappable')){clothMaterials.push(m);clothOriginals.set(m,m.map);}
      m.needsUpdate=true;
     }
@@ -122,10 +137,10 @@ export function mountHorse(host:HTMLElement,getSettings:()=>Settings,onPhase:(ph
  function frame(time:number){if(disposed)return;raf=requestAnimationFrame(frame);const dt=Math.min((time-lastTime)/1000,.05);lastTime=time;const s=getSettings();
   if(s.darkMode!==lastDark){lastDark=s.darkMode;scene.background=new THREE.Color(s.darkMode?0x0b1016:0xedf0f3);scene.fog=new THREE.Fog(scene.background,15,35);floor.material=s.darkMode?floorDark:floorLight;gridMat.opacity=s.darkMode?.06:.45;}
   if(lastFov!==s.fov){camera.fov=s.fov;camera.updateProjectionMatrix();lastFov=s.fov;}updateLights(s);
-  if(coatMaterials.size&&lastCoat!==s.coat){applyCoat(s.coat);lastCoat=s.coat;}
+  if(coatMaterials.size&&lastCoat!==s.coat&&(!coatFiles[s.coat]||coatImages.has(coatFiles[s.coat]!))){applyCoat(s.coat);lastCoat=s.coat;}
   if(pose&&!s.poseMode)exitPose();
   if(mixer&&actions[s.gait]&&!pose){if(lastGait!==s.gait){const framing=clipCenters[s.gait];if(framing){const oldPivot=pivot.clone();normalized.position.copy(framing.offset);pivot.set(0,framing.height,0);root.position.copy(pivot);camera.position.add(pivot.clone().sub(oldPivot));controls.target.copy(pivot);previousLights=undefined;}for(const action of Object.values(actions))action.enabled=false;active=actions[s.gait];active.enabled=true;lastGait=s.gait;phase=s.phase;lastPhase=s.phase;}
-   if(lastPhase!==s.phase){phase=s.phase;lastPhase=s.phase;}const duration=active!.getClip().duration;if(s.playing&&!s.poseMode)phase=(phase+dt*s.speed/duration)%1;active!.time=phase*duration;mixer.update(0);
+   if(lastPhase!==s.phase){phase=s.phase;lastPhase=s.phase;}const duration=active!.getClip().duration;if(s.playing&&s.motionEnabled&&!s.poseMode)phase=(phase+dt*s.speed/duration)%1;active!.time=phase*duration;mixer.update(0);
   }
   if(s.poseMode&&!pose&&rigData&&modelObject&&active){references.restore();pose=createPoseModel(modelObject,rigData,s.gait,phase*active.getClip().duration);poseControls=attachPoseControls(pose,scene,camera,renderer.domElement,controls,onJoint);lastReference='';}
   if(poseControls){poseControls.transform.setMode(s.poseTool);poseControls.transform.setSpace(s.poseSpace);poseControls.transform.setTranslationSnap(s.poseSnap?(s.poseSpace==='local'?.05/(poseControls.transform.object?.parent?.getWorldScale(new THREE.Vector3()).x||1):.05):null);poseControls.transform.setRotationSnap(s.poseSnap?THREE.MathUtils.degToRad(15):null);poseControls.update(s.showJoints);}
@@ -135,5 +150,5 @@ export function mountHorse(host:HTMLElement,getSettings:()=>Settings,onPhase:(ph
   controls.autoRotate=s.rotate&&!s.poseMode;controls.update();const above=camera.position.y>.06&&s.reference!=='depth';floor.visible=above;shadow.visible=above&&s.darkMode;grid.visible=above&&s.grid;renderer.render(scene,camera);notify+=dt;if(notify>.08){notify=0;onPhase(phase);}
  }
  const resize=()=>{const w=host.clientWidth,h=Math.max(1,host.clientHeight);camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);};const observer=new ResizeObserver(resize);observer.observe(host);resize();raf=requestAnimationFrame(frame);
- return {ready:Promise.all([ready,rigReady]).then(()=>{}),view,selectJoint:(name:string)=>poseControls?.select(name),resetJoint:()=>poseControls?.resetJoint(),resetPose:()=>poseControls?.reset(),undoPose:()=>poseControls?.undo(),uploadCloth,resetCloth,zoom:(direction:number)=>{camera.position.sub(controls.target).multiplyScalar(direction>0?.86:1.16).clampLength(2,24).add(controls.target);controls.update();},export:()=>new Promise<Blob>((resolve,reject)=>{const helpers=[...lightObjects.values()].map(e=>e.helper),visible=helpers.map(h=>h.visible);helpers.forEach(h=>h.visible=false);poseControls?.hide();renderer.render(scene,camera);renderer.domElement.toBlob(b=>b?resolve(b):reject(new Error('Could not export image')),'image/png');helpers.forEach((h,i)=>h.visible=visible[i]);}),destroy:()=>{disposed=true;cancelAnimationFrame(raf);observer.disconnect();exitPose();references.dispose();controls.dispose();mixer?.stopAllAction();for(const {light,helper} of lightObjects.values()){helper.dispose();light.dispose();}disposeModel(scene);for(const t of coatMaps.values())t.dispose();for(const t of coatMaterials.values())t.dispose();for(const t of clothOriginals.values())t?.dispose();customCloth?.dispose();weave.dispose();floorLight.dispose();floorDark.dispose();grid.geometry.dispose();gridMat.dispose();renderer.dispose();renderer.domElement.remove();}};
+ return {ready:Promise.all([ready,rigReady,coatsReady]).then(()=>{}),view,selectJoint:(name:string)=>poseControls?.select(name),resetJoint:()=>poseControls?.resetJoint(),resetPose:()=>poseControls?.reset(),undoPose:()=>poseControls?.undo(),uploadCloth,resetCloth,zoom:(direction:number)=>{camera.position.sub(controls.target).multiplyScalar(direction>0?.86:1.16).clampLength(2,24).add(controls.target);controls.update();},export:()=>new Promise<Blob>((resolve,reject)=>{const helpers=[...lightObjects.values()].map(e=>e.helper),visible=helpers.map(h=>h.visible);helpers.forEach(h=>h.visible=false);poseControls?.hide();renderer.render(scene,camera);renderer.domElement.toBlob(b=>b?resolve(b):reject(new Error('Could not export image')),'image/png');helpers.forEach((h,i)=>h.visible=visible[i]);}),destroy:()=>{disposed=true;cancelAnimationFrame(raf);observer.disconnect();exitPose();references.dispose();controls.dispose();mixer?.stopAllAction();for(const {light,helper} of lightObjects.values()){helper.dispose();light.dispose();}disposeModel(scene);for(const img of coatImages.values())img.close();for(const t of coatMaps.values())t.dispose();for(const t of coatMaterials.values())t.dispose();for(const t of clothOriginals.values())t?.dispose();customCloth?.dispose();weave.dispose();floorLight.dispose();floorDark.dispose();grid.geometry.dispose();gridMat.dispose();renderer.dispose();renderer.domElement.remove();}};
 }

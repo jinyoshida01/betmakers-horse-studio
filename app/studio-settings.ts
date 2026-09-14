@@ -1,6 +1,6 @@
-export type Coat = 'Chestnut' | 'Bay' | 'Black' | 'Grey' | 'Palomino';
+export type Coat = 'Chestnut' | 'Bay' | 'Black' | 'Grey' | 'Palomino' | 'Pinto' | 'Grey Pinto' | 'Rose Grey' | 'Cremello' | 'White';
 export type StudioLight = { id: string; name: string; enabled: boolean; color: string; intensity: number; x: number; y: number; z: number };
-export const coats: Coat[] = ['Chestnut', 'Bay', 'Black', 'Grey', 'Palomino'];
+export const coats: Coat[] = ['Chestnut', 'Bay', 'Black', 'Grey', 'Palomino', 'Pinto', 'Grey Pinto', 'Rose Grey', 'Cremello', 'White'];
 export function lightingPreset(name: string) {
  const soft: StudioLight[] = [
   {id:'key',name:'Key light',enabled:true,color:'#fff5e9',intensity:3.8,x:-4,y:6,z:5},
@@ -13,5 +13,5 @@ export function lightingPreset(name: string) {
 }
 export const fovToLens=(fov:number)=>12/Math.tan(fov*Math.PI/360);
 export const lensToFov=(lens:number)=>Math.atan(12/lens)*360/Math.PI;
-export type Settings={gait:'idle'|'run';playing:boolean;speed:number;phase:number;rotate:boolean;grid:boolean;darkMode:boolean;fov:number;coat:Coat;ambient:number;exposure:number;lights:StudioLight[];lightHelpers:boolean;reference:'textured'|'grey'|'depth';poseMode:boolean;poseTool:'translate'|'rotate';poseSpace:'local'|'world';poseSnap:boolean;showJoints:boolean};
-export const defaults:Settings={gait:'idle',playing:true,speed:1,phase:0,rotate:false,grid:true,darkMode:true,fov:36,coat:'Chestnut',...lightingPreset('Soft studio'),lightHelpers:false,reference:'textured',poseMode:false,poseTool:'rotate',poseSpace:'local',poseSnap:false,showJoints:true};
+export type Settings={gait:'idle'|'run';motionEnabled:boolean;playing:boolean;speed:number;phase:number;rotate:boolean;grid:boolean;darkMode:boolean;fov:number;coat:Coat;ambient:number;exposure:number;lights:StudioLight[];lightHelpers:boolean;reference:'textured'|'grey'|'depth'|'wireframe';poseMode:boolean;poseTool:'translate'|'rotate';poseSpace:'local'|'world';poseSnap:boolean;showJoints:boolean};
+export const defaults:Settings={gait:'idle',motionEnabled:false,playing:false,speed:1,phase:0,rotate:false,grid:true,darkMode:true,fov:36,coat:'Chestnut',...lightingPreset('Soft studio'),lightHelpers:false,reference:'textured',poseMode:false,poseTool:'rotate',poseSpace:'local',poseSnap:false,showJoints:true};

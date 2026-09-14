@@ -7,8 +7,8 @@ export function useStudioTools(setSettings:Dispatch<SetStateAction<Settings>>){
   const context=(document as Document & {modelContext?:{registerTool:(tool:Tool,options:{signal:AbortSignal})=>void|Promise<void>}}).modelContext;
   if(!context?.registerTool)return;
   const life=new AbortController();
-  const enums:Record<string,string[]>={gait:['idle','run'],coat:['Chestnut','Bay','Black','Grey','Palomino'],reference:['textured','grey','depth'],poseTool:['translate','rotate'],poseSpace:['local','world']};
-  const booleans=['playing','rotate','grid','darkMode','lightHelpers','poseSnap','showJoints'];
+  const enums:Record<string,string[]>={gait:['idle','run'],coat:['Chestnut','Bay','Black','Grey','Palomino','Pinto','Grey Pinto','Rose Grey','Cremello','White'],reference:['textured','grey','depth','wireframe'],poseTool:['translate','rotate'],poseSpace:['local','world']};
+  const booleans=['motionEnabled','playing','rotate','grid','darkMode','lightHelpers','poseSnap','showJoints'];
   const ranges:Record<string,number[]>={speed:[.25,2],phase:[0,1],fov:[15,80],ambient:[0,4],exposure:[.4,2.5]};
   const properties:Record<string,object>={};
   Object.entries(enums).forEach(([key,values])=>properties[key]={type:'string',enum:values});
@@ -23,7 +23,7 @@ export function useStudioTools(setSettings:Dispatch<SetStateAction<Settings>>){
     if(booleans.includes(key)&&typeof value!=='boolean')throw new Error(`Expected boolean for ${key}`);
     if(ranges[key]&&(typeof value!=='number'||!Number.isFinite(value)||value<ranges[key][0]||value>ranges[key][1]))throw new Error(`Invalid range for ${key}`);
    }
-   const prepared={...patch};if('phase' in patch&&!('playing' in patch))prepared.playing=false;
+   const prepared={...patch};if(patch.playing===true&&!('motionEnabled' in patch))prepared.motionEnabled=true;if('gait' in patch&&!('motionEnabled' in patch))prepared.motionEnabled=true;if(patch.motionEnabled===false)prepared.playing=false;if('phase' in patch&&!('playing' in patch))prepared.playing=false;
    let result:Settings|undefined;flushSync(()=>setSettings(s=>{result={...s,...prepared} as Settings;return result;}));
    return {settings:result};
   }};
