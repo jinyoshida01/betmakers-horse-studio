@@ -1,15 +1,15 @@
 import { useEffect, type Dispatch, type SetStateAction } from 'react';
 import { flushSync } from 'react-dom';
-import type { Settings } from './horse';
+import type { Settings } from './studio-settings';
 type Tool={name:string;description:string;inputSchema:object;annotations:{readOnlyHint:boolean;untrustedContentHint:boolean};execute:(input:unknown)=>unknown};
 export function useStudioTools(setSettings:Dispatch<SetStateAction<Settings>>){
  useEffect(()=>{
   const context=(document as Document & {modelContext?:{registerTool:(tool:Tool,options:{signal:AbortSignal})=>void|Promise<void>}}).modelContext;
   if(!context?.registerTool)return;
   const life=new AbortController();
-  const enums:Record<string,string[]>={gait:['idle','run']};
-  const booleans=['playing','rotate','grid','darkMode'];
-  const ranges:Record<string,number[]>={speed:[.25,2],phase:[0,1]};
+  const enums:Record<string,string[]>={gait:['idle','run'],coat:['Chestnut','Bay','Black','Grey','Palomino']};
+  const booleans=['playing','rotate','grid','darkMode','lightHelpers'];
+  const ranges:Record<string,number[]>={speed:[.25,2],phase:[0,1],fov:[15,80],ambient:[0,4],exposure:[.4,2.5]};
   const properties:Record<string,object>={};
   Object.entries(enums).forEach(([key,values])=>properties[key]={type:'string',enum:values});
   booleans.forEach(key=>properties[key]={type:'boolean'});
