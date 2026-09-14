@@ -2,10 +2,13 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+import { createPoseModel, type RigData, type PoseModel } from './pose-model';
+import { attachPoseControls } from './pose-controls';
+import { referenceMaterials } from './reference-materials';
 import type { Settings, Coat } from './studio-settings';
 export { defaults, type Settings } from './studio-settings';
 
-export function mountHorse(host:HTMLElement,getSettings:()=>Settings,onPhase:(phase:number)=>void){
+export function mountHorse(host:HTMLElement,getSettings:()=>Settings,onPhase:(phase:number)=>void,onJoint:(name:string)=>void=()=>{}){
  const scene=new THREE.Scene(), pivot=new THREE.Vector3(0,1.6,0);
  const camera=new THREE.PerspectiveCamera(36,1,.05,100);
  const renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});
@@ -42,6 +45,9 @@ export function mountHorse(host:HTMLElement,getSettings:()=>Settings,onPhase:(ph
  const grid=new THREE.GridHelper(18,36,0xc8d0d7,0xdce1e6);grid.position.y=.004;const gridMat=grid.material as THREE.Material;gridMat.transparent=true;scene.add(grid);
  // The root origin and orbit target are the center of the evaluated idle pose.
  const root=new THREE.Group(),normalized=new THREE.Group();root.add(normalized);scene.add(root);
+ let modelObject:THREE.Object3D|undefined,rigData:RigData|undefined,pose:PoseModel|undefined,poseControls:ReturnType<typeof attachPoseControls>|undefined;
+ const modelMeshes:THREE.Mesh[]=[];const references=referenceMaterials();let lastReference='';
+ const rigReady=fetch('/models/horse-rig.json').then(r=>{if(!r.ok)throw new Error('Rig could not load');return r.json() as Promise<RigData>;}).then(data=>{rigData=data;});
  const clipCenters:Record<string,{offset:THREE.Vector3;height:number}>={};
  let mixer:THREE.AnimationMixer|undefined,actions:Record<string,THREE.AnimationAction>={},active:THREE.AnimationAction|undefined,lastGait='',lastPhase=-1,phase=0,lastTime=performance.now(),notify=0,raf=0,disposed=false,lastDark:boolean|undefined,lastFov=0,lastCoat:Coat|undefined;
  const clothMaterials:THREE.MeshStandardMaterial[]=[];
@@ -74,7 +80,7 @@ export function mountHorse(host:HTMLElement,getSettings:()=>Settings,onPhase:(ph
  }
  const ready=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync('/models/chestnut-horse.glb').then(gltf=>{
   if(disposed){disposeModel(gltf.scene);throw new Error('Viewer closed');}
-  const model=gltf.scene;model.rotation.y=-Math.PI/2;
+  const model=gltf.scene;modelObject=model;model.rotation.y=-Math.PI/2;
   mixer=new THREE.AnimationMixer(model);const idle=gltf.animations.find(c=>c.name==='Idle'),run=gltf.animations.find(c=>c.name==='Running');if(!idle||!run)throw new Error('The model must include Idle and Running animations.');
   actions={idle:mixer.clipAction(idle),run:mixer.clipAction(run)};for(const a of Object.values(actions)){a.setLoop(THREE.LoopRepeat,Infinity);a.play();a.enabled=false;}
   actions.idle.enabled=true;actions.idle.time=0;mixer.update(0);model.updateMatrixWorld(true);
@@ -89,7 +95,7 @@ export function mountHorse(host:HTMLElement,getSettings:()=>Settings,onPhase:(ph
   }
   actions.run.enabled=false;actions.idle.enabled=true;actions.idle.time=0;mixer.update(0);
   pivot.set(0,size.y*scale/2,0);root.position.copy(pivot);root.add(normalized);controls.target.copy(pivot);previousLights=undefined;
-  model.traverse(o=>{if(o instanceof THREE.Mesh){o.castShadow=true;o.receiveShadow=true;
+  model.traverse(o=>{if(o instanceof THREE.Mesh){modelMeshes.push(o);o.castShadow=true;o.receiveShadow=true;
    for(const m of Array.isArray(o.material)?o.material:[o.material])if(m instanceof THREE.MeshStandardMaterial){
     if((m.name.startsWith('Horse_Chestnut')||m.name.startsWith('Fur_Chestnut'))&&m.map)coatMaterials.set(m,m.map);
     if(m.name.startsWith('Saddlecloth')){
@@ -112,15 +118,22 @@ export function mountHorse(host:HTMLElement,getSettings:()=>Settings,onPhase:(ph
   // Match glTF UV orientation; uploaded artwork stays upright.
   resetCloth();customCloth=texture;for(const m of clothMaterials){m.map=texture;m.needsUpdate=true;}
  }
+ function exitPose(){references.restore();poseControls?.dispose();poseControls=undefined;pose?.dispose();pose=undefined;lastReference='';onJoint('');}
  function frame(time:number){if(disposed)return;raf=requestAnimationFrame(frame);const dt=Math.min((time-lastTime)/1000,.05);lastTime=time;const s=getSettings();
   if(s.darkMode!==lastDark){lastDark=s.darkMode;scene.background=new THREE.Color(s.darkMode?0x0b1016:0xedf0f3);scene.fog=new THREE.Fog(scene.background,15,35);floor.material=s.darkMode?floorDark:floorLight;gridMat.opacity=s.darkMode?.06:.45;}
   if(lastFov!==s.fov){camera.fov=s.fov;camera.updateProjectionMatrix();lastFov=s.fov;}updateLights(s);
   if(coatMaterials.size&&lastCoat!==s.coat){applyCoat(s.coat);lastCoat=s.coat;}
-  if(mixer&&actions[s.gait]){if(lastGait!==s.gait){const framing=clipCenters[s.gait];if(framing){const oldPivot=pivot.clone();normalized.position.copy(framing.offset);pivot.set(0,framing.height,0);root.position.copy(pivot);camera.position.add(pivot.clone().sub(oldPivot));controls.target.copy(pivot);previousLights=undefined;}for(const action of Object.values(actions))action.enabled=false;active=actions[s.gait];active.enabled=true;lastGait=s.gait;phase=s.phase;lastPhase=s.phase;}
-   if(lastPhase!==s.phase){phase=s.phase;lastPhase=s.phase;}const duration=active!.getClip().duration;if(s.playing)phase=(phase+dt*s.speed/duration)%1;active!.time=phase*duration;mixer.update(0);
+  if(pose&&!s.poseMode)exitPose();
+  if(mixer&&actions[s.gait]&&!pose){if(lastGait!==s.gait){const framing=clipCenters[s.gait];if(framing){const oldPivot=pivot.clone();normalized.position.copy(framing.offset);pivot.set(0,framing.height,0);root.position.copy(pivot);camera.position.add(pivot.clone().sub(oldPivot));controls.target.copy(pivot);previousLights=undefined;}for(const action of Object.values(actions))action.enabled=false;active=actions[s.gait];active.enabled=true;lastGait=s.gait;phase=s.phase;lastPhase=s.phase;}
+   if(lastPhase!==s.phase){phase=s.phase;lastPhase=s.phase;}const duration=active!.getClip().duration;if(s.playing&&!s.poseMode)phase=(phase+dt*s.speed/duration)%1;active!.time=phase*duration;mixer.update(0);
   }
-  controls.autoRotate=s.rotate;controls.update();const above=camera.position.y>.06;floor.visible=above;shadow.visible=above&&s.darkMode;grid.visible=above&&s.grid;renderer.render(scene,camera);notify+=dt;if(notify>.08){notify=0;onPhase(phase);}
+  if(s.poseMode&&!pose&&rigData&&modelObject&&active){references.restore();pose=createPoseModel(modelObject,rigData,s.gait,phase*active.getClip().duration);poseControls=attachPoseControls(pose,scene,camera,renderer.domElement,controls,onJoint);lastReference='';}
+  if(poseControls){poseControls.transform.setMode(s.poseTool);poseControls.transform.setSpace(s.poseSpace);poseControls.transform.setTranslationSnap(s.poseSnap?(s.poseSpace==='local'?.05/(poseControls.transform.object?.parent?.getWorldScale(new THREE.Vector3()).x||1):.05):null);poseControls.transform.setRotationSnap(s.poseSnap?THREE.MathUtils.degToRad(15):null);poseControls.update(s.showJoints);}
+  if(lastReference!==s.reference){references.apply([...modelMeshes,...(pose?.skins||[])],s.reference);lastReference=s.reference;}
+  const distance=camera.position.distanceTo(controls.target);references.range.value.set(Math.max(.05,distance-3.5),distance+3.5);
+  scene.background=new THREE.Color(s.reference==='depth'?0x000000:s.darkMode?0x0b1016:0xedf0f3);
+  controls.autoRotate=s.rotate&&!s.poseMode;controls.update();const above=camera.position.y>.06&&s.reference!=='depth';floor.visible=above;shadow.visible=above&&s.darkMode;grid.visible=above&&s.grid;renderer.render(scene,camera);notify+=dt;if(notify>.08){notify=0;onPhase(phase);}
  }
  const resize=()=>{const w=host.clientWidth,h=Math.max(1,host.clientHeight);camera.aspect=w/h;camera.updateProjectionMatrix();renderer.setSize(w,h);};const observer=new ResizeObserver(resize);observer.observe(host);resize();raf=requestAnimationFrame(frame);
- return {ready,view,uploadCloth,resetCloth,zoom:(direction:number)=>{camera.position.sub(controls.target).multiplyScalar(direction>0?.86:1.16).clampLength(2,24).add(controls.target);controls.update();},export:()=>new Promise<Blob>((resolve,reject)=>{const helpers=[...lightObjects.values()].map(e=>e.helper),visible=helpers.map(h=>h.visible);helpers.forEach(h=>h.visible=false);renderer.render(scene,camera);renderer.domElement.toBlob(b=>b?resolve(b):reject(new Error('Could not export image')),'image/png');helpers.forEach((h,i)=>h.visible=visible[i]);}),destroy:()=>{disposed=true;cancelAnimationFrame(raf);observer.disconnect();controls.dispose();mixer?.stopAllAction();for(const {light,helper} of lightObjects.values()){helper.dispose();light.dispose();}disposeModel(scene);for(const t of coatMaps.values())t.dispose();for(const t of coatMaterials.values())t.dispose();for(const t of clothOriginals.values())t?.dispose();customCloth?.dispose();weave.dispose();floorLight.dispose();floorDark.dispose();grid.geometry.dispose();gridMat.dispose();renderer.dispose();renderer.domElement.remove();}};
+ return {ready:Promise.all([ready,rigReady]).then(()=>{}),view,selectJoint:(name:string)=>poseControls?.select(name),resetJoint:()=>poseControls?.resetJoint(),resetPose:()=>poseControls?.reset(),undoPose:()=>poseControls?.undo(),uploadCloth,resetCloth,zoom:(direction:number)=>{camera.position.sub(controls.target).multiplyScalar(direction>0?.86:1.16).clampLength(2,24).add(controls.target);controls.update();},export:()=>new Promise<Blob>((resolve,reject)=>{const helpers=[...lightObjects.values()].map(e=>e.helper),visible=helpers.map(h=>h.visible);helpers.forEach(h=>h.visible=false);poseControls?.hide();renderer.render(scene,camera);renderer.domElement.toBlob(b=>b?resolve(b):reject(new Error('Could not export image')),'image/png');helpers.forEach((h,i)=>h.visible=visible[i]);}),destroy:()=>{disposed=true;cancelAnimationFrame(raf);observer.disconnect();exitPose();references.dispose();controls.dispose();mixer?.stopAllAction();for(const {light,helper} of lightObjects.values()){helper.dispose();light.dispose();}disposeModel(scene);for(const t of coatMaps.values())t.dispose();for(const t of coatMaterials.values())t.dispose();for(const t of clothOriginals.values())t?.dispose();customCloth?.dispose();weave.dispose();floorLight.dispose();floorDark.dispose();grid.geometry.dispose();gridMat.dispose();renderer.dispose();renderer.domElement.remove();}};
 }

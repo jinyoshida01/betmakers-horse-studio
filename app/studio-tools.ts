@@ -7,8 +7,8 @@ export function useStudioTools(setSettings:Dispatch<SetStateAction<Settings>>){
   const context=(document as Document & {modelContext?:{registerTool:(tool:Tool,options:{signal:AbortSignal})=>void|Promise<void>}}).modelContext;
   if(!context?.registerTool)return;
   const life=new AbortController();
-  const enums:Record<string,string[]>={gait:['idle','run'],coat:['Chestnut','Bay','Black','Grey','Palomino']};
-  const booleans=['playing','rotate','grid','darkMode','lightHelpers'];
+  const enums:Record<string,string[]>={gait:['idle','run'],coat:['Chestnut','Bay','Black','Grey','Palomino'],reference:['textured','grey','depth'],poseTool:['translate','rotate'],poseSpace:['local','world']};
+  const booleans=['playing','rotate','grid','darkMode','lightHelpers','poseSnap','showJoints'];
   const ranges:Record<string,number[]>={speed:[.25,2],phase:[0,1],fov:[15,80],ambient:[0,4],exposure:[.4,2.5]};
   const properties:Record<string,object>={};
   Object.entries(enums).forEach(([key,values])=>properties[key]={type:'string',enum:values});

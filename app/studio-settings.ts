@@ -13,5 +13,5 @@ export function lightingPreset(name: string) {
 }
 export const fovToLens=(fov:number)=>12/Math.tan(fov*Math.PI/360);
 export const lensToFov=(lens:number)=>Math.atan(12/lens)*360/Math.PI;
-export type Settings={gait:'idle'|'run';playing:boolean;speed:number;phase:number;rotate:boolean;grid:boolean;darkMode:boolean;fov:number;coat:Coat;ambient:number;exposure:number;lights:StudioLight[];lightHelpers:boolean};
-export const defaults:Settings={gait:'idle',playing:true,speed:1,phase:0,rotate:false,grid:true,darkMode:true,fov:36,coat:'Chestnut',...lightingPreset('Soft studio'),lightHelpers:false};
+export type Settings={gait:'idle'|'run';playing:boolean;speed:number;phase:number;rotate:boolean;grid:boolean;darkMode:boolean;fov:number;coat:Coat;ambient:number;exposure:number;lights:StudioLight[];lightHelpers:boolean;reference:'textured'|'grey'|'depth';poseMode:boolean;poseTool:'translate'|'rotate';poseSpace:'local'|'world';poseSnap:boolean;showJoints:boolean};
+export const defaults:Settings={gait:'idle',playing:true,speed:1,phase:0,rotate:false,grid:true,darkMode:true,fov:36,coat:'Chestnut',...lightingPreset('Soft studio'),lightHelpers:false,reference:'textured',poseMode:false,poseTool:'rotate',poseSpace:'local',poseSnap:false,showJoints:true};
