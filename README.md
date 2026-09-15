@@ -2,7 +2,7 @@
 
 Interactive Three.js horse studio with animated and manually posed horses, coat and saddlecloth customization, camera and lighting controls, and PNG export.
 
-[Open the live studio](https://stride-horse-studio.betmakers-0733.chatgpt.site/)
+[Open the live studio](https://jinyoshida01.github.io/betmakers-horse-studio/)
 
 ## Features
 
@@ -26,7 +26,17 @@ npm run dev
 
 Open the local URL printed by the development server.
 
-## Build
+## GitHub Pages
+
+The public studio is published automatically from `main` by the Publish Horse Studio workflow. Repository Settings → Pages uses **GitHub Actions** as its source.
+
+```sh
+npm run build:pages
+```
+
+This exports static files to `dist/client` with the `/betmakers-horse-studio/` URL prefix, including the horse model and textures. No server or sign-in is required to use the published studio.
+
+## Original Sites build
 
 ```sh
 npm run build

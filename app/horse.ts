@@ -1,3 +1,4 @@
+import { assetPath } from './asset-path';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -47,7 +48,7 @@ export function mountHorse(host:HTMLElement,getSettings:()=>Settings,onPhase:(ph
  const root=new THREE.Group(),normalized=new THREE.Group();root.add(normalized);scene.add(root);
  let modelObject:THREE.Object3D|undefined,rigData:RigData|undefined,pose:PoseModel|undefined,poseControls:ReturnType<typeof attachPoseControls>|undefined;
  const modelMeshes:THREE.Mesh[]=[];const references=referenceMaterials();let lastReference='';
- const rigReady=fetch('/models/horse-rig.json').then(r=>{if(!r.ok)throw new Error('Rig could not load');return r.json() as Promise<RigData>;}).then(data=>{rigData=data;});
+ const rigReady=fetch(assetPath('/models/horse-rig.json')).then(r=>{if(!r.ok)throw new Error('Rig could not load');return r.json() as Promise<RigData>;}).then(data=>{rigData=data;});
  const clipCenters:Record<string,{offset:THREE.Vector3;height:number}>={};
  let mixer:THREE.AnimationMixer|undefined,actions:Record<string,THREE.AnimationAction>={},active:THREE.AnimationAction|undefined,lastGait='',lastPhase=-1,phase=0,lastTime=performance.now(),notify=0,raf=0,disposed=false,lastDark:boolean|undefined,lastFov=0,lastCoat:Coat|undefined;
  const clothMaterials:THREE.MeshStandardMaterial[]=[];
@@ -60,7 +61,7 @@ export function mountHorse(host:HTMLElement,getSettings:()=>Settings,onPhase:(ph
  function disposeModel(object:THREE.Object3D){object.traverse(o=>{if(o instanceof THREE.Mesh){o.geometry.dispose();for(const m of Array.isArray(o.material)?o.material:[o.material]){for(const value of Object.values(m))if(value instanceof THREE.Texture)value.dispose();m.dispose();}}});}
  const coatFiles:Partial<Record<Coat,string>>={Black:'black',Grey:'grey',Palomino:'cream',Pinto:'pinto','Grey Pinto':'grey-pinto','Rose Grey':'rose-grey',Cremello:'cream',White:'white'};
  const coatImages=new Map<string,ImageBitmap>();
- const coatsReady=Promise.all([...new Set(Object.values(coatFiles))].map(async file=>{const img=await new THREE.ImageBitmapLoader().loadAsync(`/models/coats/${file}.webp`);if(disposed)img.close();else coatImages.set(file!,img);}));
+ const coatsReady=Promise.all([...new Set(Object.values(coatFiles))].map(async file=>{const img=await new THREE.ImageBitmapLoader().loadAsync(assetPath(`/models/coats/${file}.webp`));if(disposed)img.close();else coatImages.set(file!,img);}));
  function applyCoat(coat:Coat){
   for(const [material,original] of coatMaterials){
    if(coat==='Chestnut'){material.map=original;material.needsUpdate=true;continue;}
@@ -92,7 +93,7 @@ export function mountHorse(host:HTMLElement,getSettings:()=>Settings,onPhase:(ph
    material.map=texture;material.needsUpdate=true;
   }
  }
- const ready=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync('/models/chestnut-horse.glb').then(gltf=>{
+ const ready=new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).loadAsync(assetPath('/models/chestnut-horse.glb')).then(gltf=>{
   if(disposed){disposeModel(gltf.scene);throw new Error('Viewer closed');}
   const model=gltf.scene;modelObject=model;model.rotation.y=-Math.PI/2;
   mixer=new THREE.AnimationMixer(model);const idle=gltf.animations.find(c=>c.name==='Idle'),run=gltf.animations.find(c=>c.name==='Running');if(!idle||!run)throw new Error('The model must include Idle and Running animations.');

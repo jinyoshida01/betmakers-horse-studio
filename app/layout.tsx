@@ -1,3 +1,4 @@
+import { assetPath } from './asset-path';
 import type { Metadata } from 'next';
 import { Figtree, Anton_SC } from 'next/font/google';
 import './globals.css';
@@ -17,8 +18,8 @@ const antonSC = Anton_SC({
 
 export const metadata: Metadata = {
   title: 'Betmakers Horse Studio',
-  icons: { icon: '/favicon.svg' },
-  description: 'Explore the Blender chestnut horse in idle or running animation. Rotate the view and download your perfect frame.',
+  icons: { icon: assetPath('/favicon.svg') },
+  description: 'Explore and pose an animated 3D horse with customizable coats, lighting, and cameras. Rotate the view and download your perfect frame.',
 };
 
 export default function RootLayout({
